@@ -1,0 +1,22 @@
+{
+  "name": "NewOrbit Conference Room",
+  "short_name": "NewOrbit Room",
+  "description": "Meeting room dashboard for Quick Join and Calendar view.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#050608",
+  "theme_color": "#050608",
+  "icons": [
+    {
+      "src": "pwa-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": [
+    "productivity",
+    "utilities"
+  ]
+}

@@ -1,0 +1,805 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NewOrbit Conference Room</title>
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#050608">
+    <link rel="icon" type="image/png" href="pwa-icon.png">
+    <link rel="apple-touch-icon" href="pwa-icon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="NewOrbit Room">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- ical.js for parsing Outlook ICS -->
+    <script src="https://cdn.jsdelivr.net/npm/ical.js@1.4.0/build/ical.min.js"></script>
+
+    <style>
+        :root {
+            --bg-dark: #050608;
+            --bg-gradient: radial-gradient(circle at 0% 0%, #1a1f35 0%, transparent 50%),
+                radial-gradient(circle at 100% 100%, #1c1428 0%, transparent 50%);
+
+            --glass: rgba(255, 255, 255, 0.03);
+            --glass-hover: rgba(255, 255, 255, 0.06);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+
+            --text-main: #ffffff;
+            --text-muted: #94a3b8;
+
+            --meet-color: #4285f4;
+            --meet-gradient: linear-gradient(135deg, rgba(66, 133, 244, 0.2), rgba(66, 133, 244, 0.05));
+
+            --teams-color: #7c52ff;
+            --teams-gradient: linear-gradient(135deg, rgba(124, 82, 255, 0.2), rgba(124, 82, 255, 0.05));
+
+            --accent: #00f0ff;
+            --radius: 24px;
+
+            --sidebar-width: 420px;
+        }
+
+        * {
+            box-sizing: border-box;
+            outline: none;
+        }
+
+        body {
+            margin: 0;
+            height: 100vh;
+            width: 100vw;
+            background-color: var(--bg-dark);
+            background-image: var(--bg-gradient);
+            color: var(--text-main);
+            font-family: 'Outfit', sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding: 0 12px;
+            z-index: 100;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+        }
+
+        .brand img {
+            height: 32px;
+            width: auto;
+            opacity: 0.9;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .icon-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 10px 16px;
+            color: var(--text-main);
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: inherit;
+        }
+
+        .icon-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .icon-btn.active {
+            background: var(--accent);
+            color: var(--bg-dark);
+        }
+
+        .clock {
+            font-size: 20px;
+            font-weight: 500;
+            color: var(--text-muted);
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Main Layout */
+        .container {
+            position: relative;
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Main Content Area */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            padding-right: 0;
+        }
+
+        .main-content.sidebar-open {
+            padding-right: calc(var(--sidebar-width) + 24px);
+        }
+
+        /* Sidebar Panel */
+        .sidebar {
+            position: fixed;
+            right: 24px;
+            top: 100px;
+            bottom: 24px;
+            width: var(--sidebar-width);
+            background: var(--glass);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius);
+            box-shadow: var(--glass-shadow);
+            transform: translateX(calc(100% + 48px));
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .sidebar.open {
+            transform: translateX(0);
+        }
+
+        .sidebar-header {
+            padding: 24px;
+            border-bottom: 1px solid var(--glass-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .sidebar-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .close-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 24px;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .close-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-main);
+        }
+
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Scrollbar styling */
+        .sidebar-content::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .sidebar-content::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .sidebar-content::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+
+        /* Glass Panel */
+        .glass-panel {
+            background: var(--glass);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius);
+            box-shadow: var(--glass-shadow);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Hero Buttons Area */
+        .hero-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .hero-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            flex: 1;
+        }
+
+        .btn-hero {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: var(--radius);
+            border: 1px solid var(--glass-border);
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            overflow: hidden;
+            text-decoration: none;
+            color: white;
+            min-height: 200px;
+        }
+
+        .btn-hero::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 0;
+        }
+
+        .btn-hero:hover {
+            transform: translateY(-4px);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-hero:active {
+            transform: scale(0.98);
+        }
+
+        .btn-hero.meet {
+            background: var(--meet-gradient);
+        }
+
+        .btn-hero.meet:hover::before {
+            background: radial-gradient(circle at center, rgba(66, 133, 244, 0.4), transparent 70%);
+            opacity: 1;
+        }
+
+        .btn-hero.meet .icon-glow {
+            color: var(--meet-color);
+            text-shadow: 0 0 20px rgba(66, 133, 244, 0.6);
+        }
+
+        .btn-hero.teams {
+            background: var(--teams-gradient);
+        }
+
+        .btn-hero.teams:hover::before {
+            background: radial-gradient(circle at center, rgba(124, 82, 255, 0.4), transparent 70%);
+            opacity: 1;
+        }
+
+        .btn-hero.teams .icon-glow {
+            color: var(--teams-color);
+            text-shadow: 0 0 20px rgba(124, 82, 255, 0.6);
+        }
+
+        .btn-content {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+        }
+
+        .btn-title {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .btn-subtitle {
+            font-size: 14px;
+            color: var(--text-muted);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .hero-logo {
+            width: 100px;
+            height: 100px;
+            margin-bottom: 20px;
+            object-fit: contain;
+            filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.3));
+            transition: transform 0.3s ease;
+        }
+
+        .btn-hero.meet .hero-logo {
+            width: 100px;
+            height: 100px;
+        }
+
+        .btn-hero:hover .hero-logo {
+            transform: scale(1.1) rotate(-5deg);
+        }
+
+        /* Manual Input Section */
+        .manual-entry {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 20px;
+            padding: 20px;
+            border: 1px solid var(--glass-border);
+        }
+
+        .input-group {
+            position: relative;
+            display: flex;
+            gap: 12px;
+            height: 56px;
+        }
+
+        textarea.link-input {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--glass-border);
+            border-radius: 14px;
+            color: white;
+            padding: 16px;
+            font-size: 16px;
+            font-family: inherit;
+            resize: none;
+            line-height: 22px;
+            transition: border-color 0.2s;
+            height: 100%;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
+        textarea.link-input:focus {
+            border-color: var(--accent);
+        }
+
+        .action-btn {
+            height: 100%;
+            padding: 0 24px;
+            border-radius: 14px;
+            border: none;
+            font-weight: 600;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: var(--text-main);
+            color: var(--bg-dark);
+        }
+
+        .btn-primary:hover {
+            background: #e2e8f0;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-main);
+            border: 1px solid var(--glass-border);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .status-msg {
+            margin-top: 12px;
+            font-size: 14px;
+            color: var(--text-muted);
+            height: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Calendar in Sidebar */
+        .cal-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-radius: 12px;
+            overflow: hidden;
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .cal-container iframe {
+            width: 100%;
+            height: 100%;
+            border: 0;
+            filter: invert(0.92) hue-rotate(180deg);
+            opacity: 0.9;
+        }
+
+        /* Guide Content */
+        .guide-section {
+            margin-bottom: 32px;
+        }
+
+        .guide-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .guide-section h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin: 0 0 12px 0;
+            color: var(--accent);
+        }
+
+        .guide-section p {
+            margin: 0 0 12px 0;
+            line-height: 1.6;
+            color: var(--text-muted);
+        }
+
+        .guide-section ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .guide-section li {
+            padding: 12px 16px;
+            margin-bottom: 8px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            border: 1px solid var(--glass-border);
+            line-height: 1.5;
+        }
+
+        .guide-section li strong {
+            color: var(--text-main);
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .email-badge {
+            display: inline-block;
+            background: rgba(0, 240, 255, 0.1);
+            color: var(--accent);
+            padding: 4px 12px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 14px;
+            margin: 8px 0;
+        }
+
+        .info-footer {
+            margin-top: auto;
+            padding-top: 16px;
+            border-top: 1px solid var(--glass-border);
+            font-size: 13px;
+            color: var(--text-muted);
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #10b981;
+            border-radius: 50%;
+            box-shadow: 0 0 8px #10b981;
+        }
+
+        @media (max-height: 800px) {
+            body {
+                padding: 16px;
+            }
+
+            header {
+                margin-bottom: 16px;
+            }
+
+            .btn-hero {
+                min-height: 160px;
+                padding: 20px 0;
+            }
+
+            .btn-title {
+                font-size: 24px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div class="brand">
+            <img src="neworbit-logo-white.png" alt="NewOrbit">
+        </div>
+        <div class="header-right">
+            <button id="scheduleBtn" class="icon-btn">
+                📅 Schedule
+            </button>
+            <button id="guideBtn" class="icon-btn">
+                ℹ️ Quick Guide
+            </button>
+            <button id="installBtn" class="btn-secondary"
+                style="display: none; padding: 8px 16px; border-radius: 8px; font-size: 14px; cursor: pointer;">
+                Install App
+            </button>
+            <div class="clock" id="clock">12:00</div>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Main Content -->
+        <div class="main-content" id="mainContent">
+            <section class="glass-panel hero-section">
+                <div class="hero-buttons">
+                    <div class="btn-hero meet" id="meetBtn">
+                        <div class="btn-content">
+                            <img src="meet-logo.png" alt="Google Meet" class="hero-logo">
+                            <span class="btn-title icon-glow">Google Meet</span>
+                            <span class="btn-subtitle">Start or Join</span>
+                        </div>
+                    </div>
+                    <div class="btn-hero teams" id="teamsBtn">
+                        <div class="btn-content">
+                            <img src="teams-logo.png" alt="Microsoft Teams" class="hero-logo">
+                            <span class="btn-title icon-glow">Teams</span>
+                            <span class="btn-subtitle">Start or Join</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="manual-entry">
+                    <div style="margin-bottom: 12px; font-weight: 500; color: var(--text-muted);">Quick Join via Link
+                    </div>
+                    <div class="input-group">
+                        <textarea id="link" class="link-input"
+                            placeholder="Paste meet.google.com or teams.microsoft.com link..."
+                            spellcheck="false"></textarea>
+                        <button class="action-btn btn-primary" id="joinAuto">Join</button>
+                        <button class="action-btn btn-secondary" id="clearBtn">Clear</button>
+                    </div>
+                    <div class="status-msg" id="status"></div>
+                </div>
+
+                <div class="info-footer">
+                    <div class="status-dot"></div>
+                    <div>System Online • Logitech MeetUp Ready</div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Schedule Sidebar -->
+        <div class="sidebar" id="scheduleSidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-title">📅 Room Schedule</div>
+                <button class="close-btn" onclick="toggleSidebar('schedule')">×</button>
+            </div>
+            <div class="sidebar-content">
+                <div class="cal-container">
+                    <iframe
+                        src="https://calendar.google.com/calendar/embed?mode=AGENDA&showTitle=0&showNav=0&showDate=0&showPrint=0&showTabs=0&showCalendars=0&showTz=0&src=conference-room%40neworbit.space&ctz=Europe%2FLondon"
+                        scrolling="yes">
+                    </iframe>
+                </div>
+            </div>
+        </div>
+
+        <!-- Guide Sidebar -->
+        <div class="sidebar" id="guideSidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-title">ℹ️ Quick Guide</div>
+                <button class="close-btn" onclick="toggleSidebar('guide')">×</button>
+            </div>
+            <div class="sidebar-content">
+                <div class="guide-section">
+                    <h3>📖 How to Use This Dashboard</h3>
+                    <ul>
+                        <li>
+                            <strong>Join Scheduled Meetings</strong>
+                            Click "Schedule" to view upcoming meetings. Tap any event to see meeting details and join
+                            links.
+                        </li>
+                        <li>
+                            <strong>Start Ad-Hoc Meetings</strong>
+                            Click the Google Meet or Teams button to instantly create a new meeting room.
+                        </li>
+                        <li>
+                            <strong>Join with Link</strong>
+                            Paste any Meet or Teams link into the input field and click "Join" to enter the meeting.
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="guide-section">
+                    <h3>📧 Room Calendar Address</h3>
+                    <p>This conference room is identified by:</p>
+                    <div class="email-badge">conference-room@neworbit.space</div>
+                    <p><strong>To schedule a meeting in this room:</strong></p>
+                    <ul>
+                        <li>In Google Calendar or Outlook, create a new meeting</li>
+                        <li>Add <strong>conference-room@neworbit.space</strong> as an attendee</li>
+                        <li>The meeting will automatically appear on this screen</li>
+                    </ul>
+                </div>
+
+                <div class="guide-section">
+                    <h3>🎥 Equipment</h3>
+                    <p>This room is equipped with a <strong>Logitech MeetUp</strong> conference camera with built-in
+                        speakers and microphone. The camera will automatically activate when you join a video call.</p>
+                </div>
+
+                <div class="guide-section">
+                    <h3>💡 Tips</h3>
+                    <ul>
+                        <li>Arrive a few minutes early to test audio and video</li>
+                        <li>Use the Schedule view to see who's using the room next</li>
+                        <li>Mute when not speaking to reduce background noise</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ---- Clock ----
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clock').textContent = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // ---- Sidebar Toggle ----
+        let currentSidebar = null;
+
+        function toggleSidebar(type) {
+            const scheduleSidebar = document.getElementById('scheduleSidebar');
+            const guideSidebar = document.getElementById('guideSidebar');
+            const mainContent = document.getElementById('mainContent');
+            const scheduleBtn = document.getElementById('scheduleBtn');
+            const guideBtn = document.getElementById('guideBtn');
+
+            // Close all first
+            scheduleSidebar.classList.remove('open');
+            guideSidebar.classList.remove('open');
+            scheduleBtn.classList.remove('active');
+            guideBtn.classList.remove('active');
+
+            if (currentSidebar === type) {
+                // Closing the current sidebar
+                currentSidebar = null;
+                mainContent.classList.remove('sidebar-open');
+            } else {
+                // Opening a sidebar
+                currentSidebar = type;
+                mainContent.classList.add('sidebar-open');
+
+                if (type === 'schedule') {
+                    scheduleSidebar.classList.add('open');
+                    scheduleBtn.classList.add('active');
+                } else if (type === 'guide') {
+                    guideSidebar.classList.add('open');
+                    guideBtn.classList.add('active');
+                }
+            }
+        }
+
+        document.getElementById('scheduleBtn').onclick = () => toggleSidebar('schedule');
+        document.getElementById('guideBtn').onclick = () => toggleSidebar('guide');
+
+        // ---- Meeting Buttons ----
+        const meetHome = "https://meet.google.com/";
+        const teamsHome = "https://teams.microsoft.com/";
+        document.getElementById("meetBtn").onclick = () => window.open(meetHome, '_self');
+        document.getElementById("teamsBtn").onclick = () => window.open(teamsHome, '_self');
+
+        // ---- Auto-join ----
+        const linkEl = document.getElementById("link");
+        const statusEl = document.getElementById("status");
+
+        function normalize(url) {
+            url = url.trim();
+            if (!url) return "";
+            if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+            return url;
+        }
+
+        function joinAuto() {
+            const url = normalize(linkEl.value);
+            if (!url) { statusEl.textContent = "Please paste a link first."; return; }
+            statusEl.textContent = "Launching meeting...";
+            statusEl.style.color = "#00f0ff";
+            setTimeout(() => {
+                window.open(url, '_self');
+                statusEl.textContent = "";
+            }, 800);
+        }
+
+        document.getElementById("joinAuto").onclick = joinAuto;
+        document.getElementById("clearBtn").onclick = () => {
+            linkEl.value = "";
+            statusEl.textContent = "";
+            linkEl.focus();
+        };
+
+        // Register Service Worker for PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('SW registered:', reg))
+                    .catch(err => console.log('SW registration failed:', err));
+            });
+        }
+
+        // PWA Install Prompt Logic
+        let deferredPrompt;
+        const installBtn = document.getElementById('installBtn');
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            installBtn.style.display = 'block';
+        });
+
+        installBtn.addEventListener('click', async () => {
+            if (!deferredPrompt) return;
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            console.log(`User response to the install prompt: ${outcome}`);
+            deferredPrompt = null;
+            installBtn.style.display = 'none';
+        });
+
+        window.addEventListener('appinstalled', () => {
+            installBtn.style.display = 'none';
+            deferredPrompt = null;
+            console.log('PWA was installed');
+        });
+    </script>
+</body>
+
+</html>
